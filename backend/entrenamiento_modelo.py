@@ -25,7 +25,7 @@ def obtener_datos():
     engine = create_engine(connection_url)
 
     query = f"""
-        SELECT titulo, genero, sinopsis
+        SELECT anio, titulo, genero, sinopsis
         FROM {TABLE_NAME};
     """
 
