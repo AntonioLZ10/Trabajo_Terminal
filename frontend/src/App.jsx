@@ -1,263 +1,283 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-// --- El Componente Principal de nuestra Aplicación ---
 function App() {
-  
-  // --- Estados de React ---
   const [descripcion, setDescripcion] = useState("");
   const [recomendaciones, setRecomendaciones] = useState([]);
-  const [estadoApp, setEstadoApp] = useState("buscando"); // 'buscando', 'resultados', 'sin_resultados'
+  const [estadoApp, setEstadoApp] = useState("buscando"); 
   const [error, setError] = useState(null);
 
   const API_URL = "http://127.0.0.1:8000/recomendar";
 
-  /**
-   * Se ejecuta cuando el usuario hace clic en "Buscar"
-   */
+  // --- LÓGICA DE BÚSQUEDA ---
   const handleBuscar = async () => {
     if (descripcion.trim() === "") return;
     setError(null);
-    
-    // Mostramos un "cargando" temporal (opcional)
-    setEstadoApp("cargando"); 
+    setEstadoApp("cargando");
 
     try {
-      const respuesta = await axios.post(API_URL, {
-        descripcion: descripcion 
-      });
-
+      const respuesta = await axios.post(API_URL, { descripcion: descripcion });
       if (respuesta.data && respuesta.data.length > 0) {
         setRecomendaciones(respuesta.data);
-        setEstadoApp("resultados"); // <-- Cambiamos a 'resultados'
+        setEstadoApp("resultados");
       } else {
         setRecomendaciones([]);
-        setEstadoApp("sin_resultados"); // <-- Cambiamos a 'sin_resultados'
+        setEstadoApp("sin_resultados");
       }
-
     } catch (err) {
-      console.error("Error al conectar con la API:", err);
-      setError("No se pudo conectar con el servidor. ¿Está el backend corriendo?");
-      setEstadoApp("error"); // <-- Estado de error
+      console.error(err);
+      setError("Error de conexión con el servidor.");
+      setEstadoApp("error");
     }
   };
 
-  /**
-   * Resetea el estado para volver a la pantalla de búsqueda
-   * (Requerimiento RF07)
-   */
+  // --- NUEVO: Detectar tecla ENTER ---
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleBuscar();
+    }
+  };
+
   const volverABuscar = () => {
     setEstadoApp("buscando");
     setRecomendaciones([]);
-    setDescripcion(""); // Limpiamos la barra de búsqueda
+    setDescripcion("");
     setError(null);
   };
 
-  // --- RENDERIZADO CONDICIONAL ---
+  // --- VISTAS ---
 
-  // 1. Lo que se ve al buscar (Figura 14)
+  // 1. Buscador (Con diseño de pastilla e icono)
   const renderBuscando = () => (
     <>
-      <p style={styles.subtitle}>
-        Danos una descripción y nosotros te recomendaremos una película
-      </p>
-      <div style={styles.searchContainer}>
+      <div style={styles.searchWrapper}>
         <input 
           type="text" 
-          placeholder="Escribe aquí..." 
+          placeholder="Películas de terror sobre brujería." 
           style={styles.searchInput}
           value={descripcion}
           onChange={(e) => setDescripcion(e.target.value)}
+          onKeyDown={handleKeyDown} // <-- Aquí está la magia del Enter
         />
-        <button 
-          style={styles.searchButton}
-          onClick={handleBuscar}
-        >
-          {estadoApp === 'cargando' ? 'Buscando...' : 'Buscar'}
+        <button style={styles.searchButton} onClick={handleBuscar}>
+          {/* Icono de Lupa SVG */}
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
         </button>
       </div>
     </>
   );
 
-  // 2. Lo que se ve con resultados (Figura 15)
+  // 2. Resultados (Tarjetas blancas)
   const renderResultados = () => (
     <>
       <div style={styles.gridResultados}>
         {recomendaciones.map((peli, index) => (
           <div key={index} style={styles.card}>
-            <h3 style={styles.cardTitle}>{peli.titulo} ({peli.anio})</h3>
-            <p style={styles.cardGenero}>{peli.genero}</p>
+            <h3 style={styles.cardTitle}>{peli.titulo}</h3>
+            {/* Si tuvieramos año lo ponemos, si no, lo quitamos */}
+            <p style={styles.cardInfo}>{peli.anio ? peli.anio : ''} • {peli.genero}</p>
             <p style={styles.cardSinopsis}>{peli.sinopsis}</p>
           </div>
         ))}
       </div>
-      <button style={styles.volverButton} onClick={volverABuscar}>
-        Volver a intentar
-      </button>
+      
+      <div style={styles.buttonsContainer}>
+        {/* Botón oscuro "Quiero más opciones" (Simulado por ahora) */}
+        <button style={styles.darkButton} onClick={() => alert("¡Próximamente en el Sprint 5!")}>
+          ¡Quiero más opciones!
+        </button>
+        
+        {/* Botón claro "Volver a intentar" */}
+        <button style={styles.lightButton} onClick={volverABuscar}>
+          Volver a intentar
+        </button>
+      </div>
     </>
   );
 
-  // 3. Lo que se ve sin resultados (Figura 17)
   const renderSinResultados = () => (
     <>
-      <h2 style={styles.mensajeResultado}>
+      <h2 style={styles.mensajeGrande}>
         Parece que no encontramos ninguna película que coincida, intenta con otra búsqueda :)
       </h2>
-      <button style={styles.volverButton} onClick={volverABuscar}>
+      <button style={styles.lightButton} onClick={volverABuscar}>
         Volver a intentar
       </button>
     </>
   );
 
-  // 4. Lo que se ve si la API falla
-  const renderError = () => (
-     <>
-      <h2 style={styles.mensajeResultado}>
-        {error}
-      </h2>
-      <button style={styles.volverButton} onClick={volverABuscar}>
-        Volver
-      </button>
-    </>
-  );
-
-  // --- Renderizado Principal de la App ---
   return (
     <div style={styles.appContainer}>
+      {/* El título siempre visible */}
       <h1 style={styles.title}>MexCine</h1>
       
-      {/* --- Contenido Dinámico --- */}
+      {/* Subtítulo solo si estamos buscando */}
+      {estadoApp === 'buscando' && (
+        <p style={styles.subtitle}>
+          Danos una descripción y nosotros te recomendaremos una película
+        </p>
+      )}
+
+      {/* Contenido Dinámico */}
       <div style={styles.contentContainer}>
-        {estadoApp === 'buscando' && renderBuscando()}
-        {estadoApp === 'cargando' && renderBuscando()} 
+        {(estadoApp === 'buscando' || estadoApp === 'cargando') && renderBuscando()}
         {estadoApp === 'resultados' && renderResultados()}
         {estadoApp === 'sin_resultados' && renderSinResultados()}
-        {estadoApp === 'error' && renderError()}
+        {estadoApp === 'error' && <h2 style={styles.mensajeGrande}>{error}</h2>}
       </div>
-      
+
       <p style={styles.footerText}>
-        "El cine mexicano al alcance de tu mano"
+        “El cine mexicano al alcance de tu mano”
       </p>
     </div>
   );
 }
 
-// --- Estilos CSS en línea ---
-// (He añadido estilos nuevos al final)
+// --- ESTILOS RESPONSIVE (Estilo Figma) ---
 const styles = {
-  // Contenedor principal
   appContainer: {
     width: '100%',
-    maxWidth: '1200px', // Hacemos la app más ancha para los resultados
+    maxWidth: '1200px',
+    textAlign: 'center',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    textAlign: 'center',
   },
-  // Contenedor del contenido
+  title: {
+    fontSize: '4rem', // Grande como en el diseño
+    fontWeight: 'bold',
+    margin: '0 0 10px 0',
+    color: 'white', 
+    textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+  },
+  subtitle: {
+    fontSize: '1.5rem',
+    fontWeight: '500',
+    marginBottom: '2rem',
+    textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+  },
+  
+  // --- BUSCADOR TIPO PASTILLA ---
+  searchWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: '50px', // Borde totalmente redondo
+    padding: '5px 5px 5px 25px', // Padding interno
+    width: '100%',
+    maxWidth: '700px', // Ancho máximo del buscador
+    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+  },
+  searchInput: {
+    flex: 1,
+    border: 'none',
+    outline: 'none',
+    fontSize: '1.2rem',
+    color: '#333',
+  },
+  searchButton: {
+    backgroundColor: '#444', // Gris oscuro para el botón de lupa
+    color: 'white',
+    border: 'none',
+    borderRadius: '50%', // Círculo perfecto
+    width: '50px',
+    height: '50px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    marginLeft: '10px',
+    transition: 'background 0.3s',
+  },
+
+  // --- TARJETAS TIPO FIGMA ---
+  gridResultados: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', // Responsive automático
+    gap: '20px',
+    width: '100%',
+    marginBottom: '3rem',
+  },
+  card: {
+    backgroundColor: 'white',
+    color: 'black', // Texto negro sobre fondo blanco
+    padding: '2rem',
+    borderRadius: '30px', // Bordes muy redondeados
+    textAlign: 'left',
+    boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+  },
+  cardTitle: {
+    fontSize: '1.8rem',
+    fontWeight: 'bold',
+    margin: '0 0 10px 0',
+  },
+  cardInfo: {
+    fontSize: '0.9rem',
+    color: '#666',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    marginBottom: '1rem',
+  },
+  cardSinopsis: {
+    fontSize: '1rem',
+    lineHeight: '1.6',
+    color: '#333',
+  },
+
+  // --- BOTONES INFERIORES ---
+  buttonsContainer: {
+    display: 'flex',
+    gap: '20px',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  darkButton: {
+    backgroundColor: '#444',
+    color: 'white',
+    border: 'none',
+    padding: '15px 30px',
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    borderRadius: '50px',
+    cursor: 'pointer',
+  },
+  lightButton: {
+    backgroundColor: '#ddd',
+    color: 'black',
+    border: 'none',
+    padding: '15px 30px',
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    borderRadius: '50px',
+    cursor: 'pointer',
+  },
+
+  // --- MENSAJES ---
+  mensajeGrande: {
+    fontSize: '2.5rem',
+    fontWeight: 'bold',
+    lineHeight: '1.2',
+    maxWidth: '800px',
+    marginBottom: '2rem',
+    textShadow: '0 2px 10px rgba(0,0,0,0.5)',
+  },
+  footerText: {
+    marginTop: '4rem',
+    fontSize: '1rem',
+    fontStyle: 'italic',
+    opacity: 0.8,
+  },
   contentContainer: {
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-  },
-  searchContainer: {
-    display: 'flex',
-    width: '100%',
-    maxWidth: '600px',
-    margin: '2rem 0',
-  },
-  searchInput: {
-    flex: 1,
-    padding: '0.75rem 1rem',
-    fontSize: '1rem',
-    border: 'none',
-    borderRadius: '8px 0 0 8px',
-    outline: 'none',
-  },
-  searchButton: {
-    padding: '0.75rem 1.5rem',
-    fontSize: '1rem',
-    backgroundColor: '#f0f0f0',
-    color: '#121212',
-    border: 'none',
-    borderRadius: '0 8px 8px 0',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-  },
-  title: {
-    fontSize: '3rem',
-    fontWeight: 'bold',
-    margin: 0,
-    color: '#E50914',
-  },
-  subtitle: {
-    fontSize: '1.25rem',
-    margin: '0.5rem 0',
-  },
-  footerText: {
-    marginTop: '2rem',
-    fontStyle: 'italic',
-    color: '#aaa',
-  },
-
-  // --- NUEVOS ESTILOS PARA RESULTADOS ---
-  
-  // Mensaje de "Sin resultados" o "Error"
-  mensajeResultado: {
-    fontSize: '1.5rem',
-    color: '#f0f0f0',
-    margin: '3rem 0',
-  },
-
-  // Botón de "Volver"
-  volverButton: {
-    padding: '0.75rem 2rem',
-    fontSize: '1rem',
-    backgroundColor: '#E50914',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    marginTop: '2rem',
-  },
-
-  // Grid para las tarjetas
-  gridResultados: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)', // 3 columnas
-    gap: '1.5rem', // Espacio entre tarjetas
-    width: '100%',
-    marginTop: '3rem',
-  },
-
-  // Tarjeta de película
-  card: {
-    backgroundColor: '#222',
-    padding: '1.5rem',
-    borderRadius: '8px',
-    textAlign: 'left',
-    boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
-  },
-  cardTitle: {
-    fontSize: '1.5rem',
-    margin: '0 0 0.5rem 0',
-    color: '#E50914',
-  },
-  cardGenero: {
-    fontSize: '0.9rem',
-    fontStyle: 'italic',
-    color: '#aaa',
-    margin: '0 0 1rem 0',
-    borderBottom: '1px solid #444',
-    paddingBottom: '0.5rem',
-  },
-  cardSinopsis: {
-    fontSize: '1rem',
-    color: '#ddd',
-    margin: 0,
-    lineHeight: '1.5',
   }
 };
 
