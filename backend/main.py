@@ -101,8 +101,16 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    """Health check: Verifica que el servicio esté operativo."""
-    return {"status": "online", "servicio": "Mexcine API v1.0"}
+    """Health check + Diagnóstico de datos."""
+    cantidad = 0
+    if "peliculas_df" in model_cache:
+        cantidad = len(model_cache["peliculas_df"])
+    
+    return {
+        "status": "online",
+        "servicio": "Mexcine API v1.0",
+        "peliculas_en_memoria": cantidad  # <--- ¡Esto nos dirá la verdad!
+    }
 
 
 @app.post("/recomendar", response_model=List[PeliculaResponse])
