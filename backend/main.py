@@ -14,32 +14,15 @@ from fastapi.middleware.cors import CORSMiddleware
 MÓDULO DE INTERFAZ DE PROGRAMACIÓN DE APLICACIONES (API)
 TRABAJO TERMINAL - SISTEMA "MEXCINE"
 -----------------------------------------------------------------------------
-Descripción:
-    Este script define el servidor backend utilizando el framework FastAPI.
-    Su responsabilidad es exponer el modelo de Machine Learning como un 
-    microservicio RESTful, gestionando la carga eficiente de modelos en 
-    memoria y validando las peticiones del cliente (Frontend).
-
-Autores: [Nombre de tu equipo / Integrantes]
-Versión: 1.0.0
------------------------------------------------------------------------------
 """
 
 # ------------------------------------------------------------
 # DEFINICIÓN DE ESQUEMAS DE DATOS (DTOs)
 # ------------------------------------------------------------
 class DescripcionRequest(BaseModel):
-    """
-    Modelo de entrada (Request Body).
-    Valida que el cliente envíe estrictamente una cadena de texto.
-    """
     descripcion: str
 
 class PeliculaResponse(BaseModel):
-    """
-    Modelo de salida (Response Model).
-    Estandariza la estructura JSON que recibirá el frontend.
-    """
     titulo: str
     genero: str
     sinopsis: str
@@ -51,7 +34,8 @@ class PeliculaResponse(BaseModel):
 KNN_MODEL_PATH = "model_artifacts/modelo_knn.pkl"
 DATA_PATH = "model_artifacts/peliculas_info.pkl"
 
-# [MODIFICADO] Apuntamos a la carpeta local donde 'download_model.py' guardó los archivos
+# [IMPORTANTE] Apuntamos a la carpeta local donde 'download_model.py' guardó los archivos.
+# Esto es vital para que Cloud Run no intente descargar nada de internet.
 SENTENCE_MODEL_NAME = "./model_files" 
 
 # Estructura global para mantener los modelos en memoria RAM
@@ -62,14 +46,10 @@ model_cache = {}
 # ------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Gestor de contexto para la inicialización y cierre de la aplicación.
-    Carga los modelos ML una única vez al iniciar el servidor.
-    """
     # --- FASE DE ARRANQUE (STARTUP) ---
     print("--- [SISTEMA] Iniciando servidor y cargando recursos ---")
     
-    print(f"-> Cargando modelo de lenguaje (NLP) desde: '{SENTENCE_MODEL_NAME}'...")
+    print(f"-> Cargando modelo de lenguaje (NLP) desde carpeta local: '{SENTENCE_MODEL_NAME}'...")
     # Cargamos el modelo desde los archivos locales (sin internet)
     model_cache["sentence_transformer"] = SentenceTransformer(SENTENCE_MODEL_NAME)
     
@@ -105,8 +85,7 @@ app = FastAPI(
 # ------------------------------------------------------------
 # CONFIGURACIÓN DE POLÍTICAS CORS (Seguridad)
 # ------------------------------------------------------------
-# [MODIFICADO] Permitimos todos los orígenes ["*"] para que el Frontend 
-# en Cloud Run (que tendrá una URL dinámica) pueda conectarse sin errores.
+# Permitimos TODOS los orígenes ["*"] para evitar problemas entre Cloud Run y el Frontend.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],            # Permitir cualquier origen
@@ -145,8 +124,8 @@ async def post_recomendar(request: DescripcionRequest):
     distancias, indices = knn.kneighbors(vector_usuario, n_neighbors=15)
     
     # 4. Reglas de Negocio
-    UMBRAL_MINIMO = 0.50  # Umbral ajustado para pruebas
-    MAX_RESULTADOS = 15   # Límite amplio para la paginación del frontend
+    UMBRAL_MINIMO = 0.50  # Umbral
+    MAX_RESULTADOS = 15   # Límite amplio para la paginación
     recomendaciones = []
     
     # Procesamos los vecinos encontrados
