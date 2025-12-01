@@ -3,53 +3,87 @@ from sqlalchemy import create_engine
 import sys
 import logging
 
-# --- CONFIGURACIÓN DE LA BASE DE DATOS ---
+"""
+-----------------------------------------------------------------------------
+MÓDULO DE INGESTA Y LIMPIEZA DE DATOS (ETL)
+TRABAJO TERMINAL
+-----------------------------------------------------------------------------
+Descripción:
+    Este script automatiza el proceso de Extracción, Transformación y Carga (ETL).
+    Lee la fuente de datos cruda (Excel), aplica reglas de normalización y limpieza
+    para asegurar la integridad referencial, y finalmente inserta los registros
+    validados en la base de datos PostgreSQL.
+    
+    Incluye un sistema de logging para auditar los registros rechazados.
+
+Autores: [Nombre de tu equipo / Integrantes]
+Fecha: Noviembre 2025
+-----------------------------------------------------------------------------
+"""
+
+# ------------------------------------------------------------
+# CONFIGURACIÓN DEL ENTORNO DE DESARROLLO
+# ------------------------------------------------------------
+# Credenciales de acceso a la capa de persistencia.
 DB_USER = "postgres"
 DB_PASS = "5525165572"
 DB_HOST = "localhost"
 DB_PORT = "5432"
 DB_NAME = "Trabajo_Terminal"
-# -----------------------------------------
+# ------------------------------------------------------------
 
-EXCEL_FILE = "../dataset.xlsx"  # Ajustado para que funcione desde /data/
+# Definición de fuentes de datos y destino
+EXCEL_FILE = "dataset2.xlsx"  
 TABLE_NAME = "peliculas"
 
-# --- CONFIGURACIÓN DEL LOG ---
+# ------------------------------------------------------------
+# SISTEMA DE AUDITORÍA (LOGGING)
+# ------------------------------------------------------------
+# Configuramos un log persistente para mantener la trazabilidad de los datos.
+# Esto nos permite saber exactamente qué registros se descartaron y por qué,
+# sin detener la ejecución del pipeline principal.
 logging.basicConfig(
     filename="registros_descartados.log",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
-# -----------------------------------------
-
 
 def log_descartado(df_descartado, motivo):
     """
-    Registra en el archivo .log el motivo del descarte y las filas afectadas.
+    Auxiliar para registrar incidentes de calidad de datos.
+    Escribe en el archivo .log las filas que no cumplieron las reglas de negocio.
     """
     for _, row in df_descartado.iterrows():
+        # Convertimos la fila a dict para un registro legible en el log
         logging.info(f"Registro descartado ({motivo}): {row.to_dict()}")
 
 
 def cargar_datos_a_postgres():
+    """
+    Función principal del pipeline ETL.
+    """
     try:
-        # Conexión a la base de datos
+        # --- FASE 1: EXTRACCIÓN (Extract) ---
         connection_url = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-        print(f"Conectando a la base de datos '{DB_NAME}' en {DB_HOST}...")
+        print(f"--- [ETL] Iniciando proceso de ingesta ---")
+        print(f"Estableciendo conexión con: {DB_NAME} en {DB_HOST}...")
         engine = create_engine(connection_url)
 
-        # Lectura del archivo Excel
-        print(f"Leyendo el archivo '{EXCEL_FILE}'...")
+        print(f"Leyendo fuente de datos cruda: '{EXCEL_FILE}'...")
         df = pd.read_excel(EXCEL_FILE, engine='openpyxl')
 
+        # Validación inicial de existencia de datos
         if df.empty:
-            print(f"Error: El archivo '{EXCEL_FILE}' está vacío.")
+            print(f"Error crítico: El archivo fuente '{EXCEL_FILE}' no contiene registros.")
             return
 
-        print(f"Se encontraron {len(df)} registros en el archivo original.")
-        print("Columnas detectadas en el Excel:", df.columns.tolist())
-
-        # --- NORMALIZACIÓN DE NOMBRES DE COLUMNAS ---
+        print(f"Dataset cargado en memoria. Total registros crudos: {len(df)}")
+        
+        # --- FASE 2: TRANSFORMACIÓN Y LIMPIEZA (Transform) ---
+        
+        # 2.1 Normalización de Metadatos (Cabeceras)
+        # Estandarizamos los nombres de columnas para evitar errores de mapeo SQL
+        # (eliminamos espacios, acentos y convertimos a minúsculas).
         df.columns = (
             df.columns
               .str.strip()
@@ -59,9 +93,10 @@ def cargar_datos_a_postgres():
               .str.decode("utf-8")
         )
 
-        # Mapeo para que coincida con la estructura SQL
+        # 2.2 Mapeo de Esquema
+        # Alineamos las columnas del Excel con el esquema definido en PostgreSQL
         column_mapping = {
-            'ano': 'anio',
+            'ano': 'anio',       # Corrección ortográfica para base de datos
             'titulo': 'titulo',
             'genero': 'genero',
             'sinopsis': 'sinopsis',
@@ -69,56 +104,67 @@ def cargar_datos_a_postgres():
         }
         df = df.rename(columns=column_mapping)
 
+        # Filtramos solo las columnas que existen en nuestro modelo de datos
         columnas_sql = ['anio', 'titulo', 'genero', 'sinopsis', 'fuente']
-        df = df[columnas_sql]
+        # Nota: Si el excel trae columnas extra, las ignoramos aquí.
+        try:
+            df = df[columnas_sql]
+        except KeyError as e:
+            print(f"Error de esquema: Falta una columna requerida en el Excel: {e}")
+            return
 
-        # --- PREPROCESAMIENTO DE LIMPIEZA ---
-        print("Realizando limpieza de datos...")
+        print("Aplicando reglas de Calidad de Datos (Data Quality Gates)...")
 
-        # Filas completamente vacías
+        # 2.3 Regla: Integridad Completa
+        # Descartamos filas que no tengan información útil (todo vacío)
         vacias = df[df.isna().all(axis=1)]
         if not vacias.empty:
             log_descartado(vacias, "Fila completamente vacía")
         df = df.dropna(how='all')
 
-        # Faltan datos en columnas obligatorias
+        # 2.4 Regla: Campos Obligatorios
+        # Un registro no sirve para el modelo si no tiene Título o Género
         obligatorias = ['anio', 'titulo', 'genero']
         faltantes = df[df[obligatorias].isna().any(axis=1)]
         if not faltantes.empty:
-            log_descartado(faltantes, "Faltan valores obligatorios")
+            log_descartado(faltantes, "Violación de restricción NOT NULL (Faltan valores)")
         df = df.dropna(subset=obligatorias)
 
-        # Conversión del año a entero
+        # 2.5 Regla: Tipado de Datos (Año)
+        # Forzamos conversión a numérico y descartamos basura (ej: "año 2000 aprox")
         df['anio'] = pd.to_numeric(df['anio'], errors='coerce')
         invalidos_anio = df[df['anio'].isna()]
         if not invalidos_anio.empty:
-            log_descartado(invalidos_anio, "Valor no numérico en columna año")
+            log_descartado(invalidos_anio, "Error de tipo de dato: Año no numérico")
         df = df.dropna(subset=['anio'])
         df['anio'] = df['anio'].astype(int)
 
-        # Limpieza de textos
+        # 2.6 Sanitización de Texto
+        # Eliminamos espacios en blanco al inicio/final que ensucian la base de datos
         cols_texto = ['titulo', 'genero', 'sinopsis', 'fuente']
         for col in cols_texto:
             df[col] = df[col].astype(str).str.strip()
 
-        print(f"Registros restantes después de limpieza: {len(df)}")
+        print(f"Registros válidos tras limpieza: {len(df)}")
 
-        # --- INSERCIÓN EN LA BASE DE DATOS ---
-        print(f"Insertando datos en la tabla '{TABLE_NAME}'...")
+        # --- FASE 3: CARGA (Load) ---
+        print(f"Insertando lote de datos en tabla '{TABLE_NAME}'...")
+        
+        # Usamos 'append' para agregar datos históricos sin borrar lo existente
         df.to_sql(TABLE_NAME, engine, if_exists='append', index=False)
 
-        print("\n✅ Proceso completado con éxito.")
-        print("➡ Datos cargados en PostgreSQL.")
-        print("➡ Registros descartados almacenados en registros_descartados.log")
+        print("\n✅ Pipeline ETL ejecutado exitosamente.")
+        print("➡ Datos persistidos en PostgreSQL.")
+        print("➡ Reporte de anomalías generado en: registros_descartados.log")
 
     except FileNotFoundError:
-        print(f"Error: No se pudo encontrar '{EXCEL_FILE}'.", file=sys.stderr)
-        print("Asegúrate de estar ejecutando el script desde la carpeta correcta.", file=sys.stderr)
+        print(f"Error de I/O: No se encuentra el archivo fuente '{EXCEL_FILE}'.", file=sys.stderr)
+        print("Verifique la ruta relativa del script.", file=sys.stderr)
 
     except Exception as e:
-        print("\nHa ocurrido un error inesperado:", file=sys.stderr)
+        print("\n⚠ Excepción no controlada durante el proceso:", file=sys.stderr)
         print(e, file=sys.stderr)
-        print("\nConsejo: Verifica las columnas del Excel o que PostgreSQL esté corriendo.", file=sys.stderr)
+        print("Sugerencia: Verifique que el servicio de PostgreSQL esté activo.", file=sys.stderr)
 
 
 if __name__ == "__main__":

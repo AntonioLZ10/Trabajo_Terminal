@@ -1,33 +1,75 @@
 /* src/index.css */
 
+/*
+-----------------------------------------------------------------------------
+HOJA DE ESTILOS GLOBALES
+TRABAJO TERMINAL - SISTEMA "MEXCINE"
+-----------------------------------------------------------------------------
+Descripción:
+    Define los fundamentos visuales de la aplicación.
+    Implementamos un diseño inmersivo ("Cinematic UI") asegurando la 
+    legibilidad del contenido mediante técnicas de superposición (overlays)
+    y tipografía optimizada para pantallas digitales.
+
+Autores: [Nombre de tu equipo]
+-----------------------------------------------------------------------------
+*/
+
 body {
+  /* Normalización de márgenes (CSS Reset básico) */
   margin: 0;
+
+  /* Stack tipográfico: Priorizamos fuentes sans-serif del sistema (System Fonts)
+     para reducir el tiempo de carga (LCP) y mejorar la legibilidad en monitores. */
   font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  
+  /* Mejora el renderizado de fuentes en motores WebKit (Chrome/Safari) */
   -webkit-font-smoothing: antialiased;
   
+  /* --- ESTRATEGIA DE FONDO INMERSIVO --- */
   background-image: url('/fondo.jpeg'); 
   
+  /* Responsive: Asegura que la imagen cubra todo el viewport sin deformarse */
   background-size: cover;
+  
   background-position: center;
-  background-attachment: fixed; /* Efecto parallax leve */
+  
+  /* Optimización de rendimiento:
+     Usamos 'fixed' para lograr un efecto Parallax nativo con CSS puro,
+     evitando el uso de listeners de scroll en JavaScript que consumen CPU. */
+  background-attachment: fixed; 
   
   color: white;
-  min-height: 100vh;
+  min-height: 100vh; /* Garantiza altura mínima del 100% de la ventana */
 }
 
-/* Esta capa crea el oscurecimiento para que el texto blanco se lea bien */
+/* Contenedor Raíz de la SPA (#root)
+   Actúa como capa de composición y estructura.
+*/
 #root {
+  /* --- ACCESIBILIDAD Y CONTRASTE (WCAG) --- */
+  /* Aplicamos un gradiente de oscurecimiento (Overlay).
+     Técnica: "Scrim Gradient".
+     Justificación: Garantiza que el texto blanco tenga suficiente contraste 
+     sobre la imagen de fondo, independientemente de los colores de la imagen. */
   background: linear-gradient(
     to bottom,
-    rgba(0, 0, 0, 0.3) 0%,   /* Arriba un poco transparente */
-    rgba(0, 0, 0, 0.8) 50%,  /* En medio más oscuro */
-    black 100%               /* Abajo negro total */
+    rgba(0, 0, 0, 0.3) 0%,   /* Transparencia superior: Mantiene visibilidad del arte */
+    rgba(0, 0, 0, 0.8) 50%,  /* Oscurecimiento gradual en zona de lectura */
+    black 100%               /* Fondo sólido inferior para anclar visualmente el footer */
   );
+
+  /* --- SISTEMA DE MAQUETACIÓN (FLEXBOX) --- */
+  /* Centrado vertical y horizontal del contenido principal */
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+
+  /* Responsive Design: Espaciado interno seguro para dispositivos móviles */
   padding: 20px;
+  
+  /* Modelo de caja: El padding se incluye dentro del ancho total calculado */
   box-sizing: border-box;
 }
