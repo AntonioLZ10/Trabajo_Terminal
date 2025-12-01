@@ -46,7 +46,7 @@ function App() {
 
   // Punto de acceso al Microservicio de Recomendación
   // Nota: En producción, esto se debe inyectar vía variables de entorno (process.env).
-  const API_URL = "http://127.0.0.1:8000/recomendar";
+  const API_URL = "https://mexcine-api-460104183072.us-central1.run.app/recomendar";
 
 
   // ---------------------------------------------------------------------------
