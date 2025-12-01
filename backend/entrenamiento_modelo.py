@@ -26,10 +26,10 @@ Autores: [Cuellar Reyes Ethan Moisés, González Rojo Scarlett Michelle y Luna Z
 # Nota: Para el despliegue final, estas credenciales se migrarán a 
 # variables de entorno por seguridad.
 DB_USER = "postgres"
-DB_PASS = "5525165572" 
-DB_HOST = "localhost"
+DB_PASS = "ns+E{XJ_ohhj9EQ)" 
+DB_HOST = "34.123.117.28"
 DB_PORT = "5432"
-DB_NAME = "Trabajo_Terminal"
+DB_NAME = "mexcine_db"
 
 # Especificamos la tabla fuente normalizada que contiene el catálogo
 TABLE_NAME = "peliculas"
