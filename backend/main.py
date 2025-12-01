@@ -108,8 +108,8 @@ def read_root():
     
     return {
         "status": "online",
-        "servicio": "Mexcine API v1.0",
-        "peliculas_en_memoria": cantidad  # <--- ¡Esto nos dirá la verdad!
+        "servicio": "Mexcine API v1.1 con dataset triplicado xd",
+        "peliculas_en_memoria": cantidad  
     }
 
 
