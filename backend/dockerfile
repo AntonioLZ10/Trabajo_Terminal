@@ -1,0 +1,29 @@
+# 1. Usamos una imagen ligera de Python 3.10
+FROM python:3.10-slim
+
+# 2. Evita que Python escriba archivos .pyc y permite ver logs en tiempo real
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# 3. Directorio de trabajo dentro del contenedor
+WORKDIR /app
+
+# 4. Instalamos las dependencias del sistema necesarias para compilar (gcc, etc.)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 5. Copiamos el requirements e instalamos las librerías
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 6. Copiamos TODO el código del backend al contenedor
+COPY . .
+
+# 7. Exponemos el puerto 8080 (El estándar de Cloud Run)
+EXPOSE 8080
+
+# 8. Comando para iniciar la API cuando arranque el contenedor
+# Nota: --host 0.0.0.0 es obligatorio para que funcione en la nube
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -26,10 +26,10 @@ Fecha: Noviembre 2025
 # ------------------------------------------------------------
 # Credenciales de acceso a la capa de persistencia.
 DB_USER = "postgres"
-DB_PASS = "5525165572"
-DB_HOST = "localhost"
+DB_PASS = "ns+E{XJ_ohhj9EQ)"
+DB_HOST = "34.123.117.28"
 DB_PORT = "5432"
-DB_NAME = "Trabajo_Terminal"
+DB_NAME = "mexcine_db"
 # ------------------------------------------------------------
 
 # Definición de fuentes de datos y destino
