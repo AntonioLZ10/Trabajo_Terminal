@@ -1,38 +1,34 @@
-# 1. Imagen base ligera
+# 1. Usamos una imagen ligera de Python 3.11
 FROM python:3.11-slim
 
-# 2. Variables recomendadas
+# 2. Variables de entorno
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # 3. Directorio de trabajo
 WORKDIR /app
 
-# 4. Dependencias del sistema
+# 4. Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# 5. Copiamos requirements
+# 5. Instalar librerías de Python
 COPY requirements.txt .
-
-# 6. Instalamos dependencias
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 7. 🔥 PRE-DESCARGAR el modelo de HuggingFace durante el build 🔥
-# Esto evita que Cloud Run lo descargue en runtime (y evita errores 429).
-RUN python3 - <<EOF
-from sentence_transformers import SentenceTransformer
-SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-EOF
+# --- [CAMBIO IMPORTANTE] ---
+# Eliminamos la descarga manual. 
+# Al hacer el COPY siguiente, Docker copiará tu carpeta local "model_files" 
+# con el modelo ya descargado.
 
-# 8. Copiamos el código de la app
+# 6. Copiar TODO el código (incluyendo la carpeta model_files y los .pkl)
 COPY . .
 
-# 9. Exponemos puerto para Cloud Run
+# 7. Exponer puerto
 EXPOSE 8080
 
-# 10. Comando de inicio
+# 8. Arrancar
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

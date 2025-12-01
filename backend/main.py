@@ -28,9 +28,6 @@ Versión: 1.0.0
 # ------------------------------------------------------------
 # DEFINICIÓN DE ESQUEMAS DE DATOS (DTOs)
 # ------------------------------------------------------------
-# Implementamos modelos Pydantic para asegurar la validación estricta de tipos
-# en la entrada y salida de la API, cumpliendo con el contrato de interfaz.
-
 class DescripcionRequest(BaseModel):
     """
     Modelo de entrada (Request Body).
@@ -41,8 +38,7 @@ class DescripcionRequest(BaseModel):
 class PeliculaResponse(BaseModel):
     """
     Modelo de salida (Response Model).
-    Estandariza la estructura JSON que recibirá el frontend, ocultando 
-    datos internos del DataFrame que no son relevantes para el usuario.
+    Estandariza la estructura JSON que recibirá el frontend.
     """
     titulo: str
     genero: str
@@ -54,8 +50,9 @@ class PeliculaResponse(BaseModel):
 # ------------------------------------------------------------
 KNN_MODEL_PATH = "model_artifacts/modelo_knn.pkl"
 DATA_PATH = "model_artifacts/peliculas_info.pkl"
-SENTENCE_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
+# [MODIFICADO] Apuntamos a la carpeta local donde 'download_model.py' guardó los archivos
+SENTENCE_MODEL_NAME = "./model_files" 
 
 # Estructura global para mantener los modelos en memoria RAM
 model_cache = {}
@@ -67,17 +64,13 @@ model_cache = {}
 async def lifespan(app: FastAPI):
     """
     Gestor de contexto para la inicialización y cierre de la aplicación.
-    
-    Decisión de diseño:
-    Utilizamos el evento 'startup' para cargar los modelos ML (BERT y KNN) 
-    una única vez al iniciar el servidor. Esto evita la latencia de carga 
-    (overhead) en cada petición del usuario y optimiza el uso de recursos.
+    Carga los modelos ML una única vez al iniciar el servidor.
     """
     # --- FASE DE ARRANQUE (STARTUP) ---
     print("--- [SISTEMA] Iniciando servidor y cargando recursos ---")
     
-    print(f"-> Cargando modelo de lenguaje (NLP): '{SENTENCE_MODEL_NAME}'...")
-    # Cargamos el modelo transformer en CPU/GPU según disponibilidad
+    print(f"-> Cargando modelo de lenguaje (NLP) desde: '{SENTENCE_MODEL_NAME}'...")
+    # Cargamos el modelo desde los archivos locales (sin internet)
     model_cache["sentence_transformer"] = SentenceTransformer(SENTENCE_MODEL_NAME)
     
     print(f"-> Deserializando modelo predictivo desde: '{KNN_MODEL_PATH}'...")
@@ -87,7 +80,6 @@ async def lifespan(app: FastAPI):
     print(f"-> Cargando catálogo de metadatos desde: '{DATA_PATH}'...")
     with open(DATA_PATH, "rb") as f:
         data_dict = pickle.load(f)
-        # Reconstruimos el DataFrame para búsquedas rápidas por índice
         model_cache["peliculas_df"] = pd.DataFrame.from_dict(data_dict)
     
     print("✅ Todos los modelos han sido cargados en memoria RAM.")
@@ -113,18 +105,13 @@ app = FastAPI(
 # ------------------------------------------------------------
 # CONFIGURACIÓN DE POLÍTICAS CORS (Seguridad)
 # ------------------------------------------------------------
-# Permitimos peticiones cruzadas únicamente desde nuestro cliente React
-# para prevenir uso no autorizado de la API desde otros dominios.
-origins = [
-    "http://localhost:5173", 
-    "http://127.0.0.1:5173",
-]
-
+# [MODIFICADO] Permitimos todos los orígenes ["*"] para que el Frontend 
+# en Cloud Run (que tendrá una URL dinámica) pueda conectarse sin errores.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],            # Permitir cualquier origen
     allow_credentials=True,
-    allow_methods=["*"],        # Permitimos todos los verbos HTTP (GET, POST)
+    allow_methods=["*"],            # Permitir todos los verbos HTTP (GET, POST)
     allow_headers=["*"],
 )
 
@@ -143,21 +130,14 @@ def read_root():
 async def post_recomendar(request: DescripcionRequest):
     """
     Endpoint principal de inferencia.
-    
-    Flujo de ejecución:
-    1. Preprocesamiento: Recibe texto del usuario.
-    2. Vectorización: Convierte texto a embeddings (BERT).
-    3. Inferencia: Busca los k-vecinos más cercanos (KNN).
-    4. Filtrado: Aplica reglas de negocio (umbral de similitud).
     """
     
-    # 1. Recuperamos modelos de la caché (operación O(1))
+    # 1. Recuperamos modelos de la caché
     model_st = model_cache["sentence_transformer"]
     knn = model_cache["knn_model"]
     df_peliculas = model_cache["peliculas_df"]
     
     # 2. Vectorización del input del usuario
-    # Transformamos la descripción a un vector de 384 dimensiones
     vector_usuario = model_st.encode(request.descripcion).reshape(1, -1)
 
     # 3. Búsqueda de vecinos (Inferencia)
@@ -165,8 +145,8 @@ async def post_recomendar(request: DescripcionRequest):
     distancias, indices = knn.kneighbors(vector_usuario, n_neighbors=15)
     
     # 4. Reglas de Negocio
-    UMBRAL_MINIMO = 0.80  # Definimos que una similitud < 80% no es relevante
-    MAX_RESULTADOS = 15   # Límite de respuesta al cliente
+    UMBRAL_MINIMO = 0.50  # Umbral ajustado para pruebas
+    MAX_RESULTADOS = 15   # Límite amplio para la paginación del frontend
     recomendaciones = []
     
     # Procesamos los vecinos encontrados
@@ -174,11 +154,9 @@ async def post_recomendar(request: DescripcionRequest):
         idx = indices[0][i]      # Índice en el DataFrame original
         dist = distancias[0][i]  # Distancia coseno
         
-        # Conversión matemática: Similitud = 1 - Distancia Coseno
-        # (Donde 0 es opuesto y 1 es idéntico)
         similitud = 1 - dist
         
-        # Filtro de calidad (Thresholding)
+        # Filtro de calidad
         if similitud >= UMBRAL_MINIMO:
             pelicula_data = df_peliculas.iloc[idx]
             
@@ -190,7 +168,7 @@ async def post_recomendar(request: DescripcionRequest):
                 anio=pelicula_data['anio']
             ))
         
-        # Early exit si alcanzamos el máximo deseado
+        # Early exit
         if len(recomendaciones) >= MAX_RESULTADOS:
             break
 
