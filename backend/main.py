@@ -54,7 +54,8 @@ class PeliculaResponse(BaseModel):
 # ------------------------------------------------------------
 KNN_MODEL_PATH = "model_artifacts/modelo_knn.pkl"
 DATA_PATH = "model_artifacts/peliculas_info.pkl"
-SENTENCE_MODEL_NAME = "all-MiniLM-L6-v2"
+SENTENCE_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+
 
 # Estructura global para mantener los modelos en memoria RAM
 model_cache = {}
